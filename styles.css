@@ -255,16 +255,16 @@ strong { font-weight: 600; color: var(--color-ink); }
   line-height: 1;
 }
 
-/* The logo jpgs carry a near-white ground; multiply drops it into the canvas. */
-.mark { mix-blend-mode: multiply; }
-.nav__mark { width: 2rem; height: 2rem; }
+/* The logo is a transparent PNG, so no blend mode is needed to drop it into
+   the canvas. mix-blend-mode was previously required because the mark was a
+   JPG carrying a near-white ground. */
+.mark { display: block; }
+.nav__mark { width: 2rem; height: 2rem; object-fit: contain; }
 
-/* Dark mode: logo images have dark art on white ground.
-   multiply works in light mode (white becomes transparent).
-   In dark mode, invert makes dark art light and white bg dark. */
+/* Dark mode: the mark is a saturated blue, which reads a little dim against
+   the near-black canvas, so lift it slightly rather than inverting it. */
 [data-theme="dark"] .mark {
-  mix-blend-mode: normal;
-  filter: invert(1) contrast(1.2);
+  filter: brightness(1.18) saturate(1.05);
 }
 
 /* ═══ Buttons ══════════════════════════════════════════════ */
@@ -810,7 +810,9 @@ strong { font-weight: 600; color: var(--color-ink); }
   gap: var(--space-lg);
 }
 .hero__mark {
-  width: min(24rem, 78vw);
+  /* square mark, so size by height budget rather than the old wide ratio */
+  width: auto;
+  height: min(15rem, 42vh);
   filter: drop-shadow(0 14px 30px oklch(18% 0.014 265 / 0.10));
   animation: mark-in var(--dur-long) var(--ease-out) backwards;
 }
@@ -1318,7 +1320,7 @@ strong { font-weight: 600; color: var(--color-ink); }
 /* ═══ 05 · close ═══════════════════════════════════════════ */
 .close { padding-block: var(--space-4xl); }
 .close__inner { display: grid; justify-items: center; text-align: center; gap: var(--space-lg); }
-.close__mark { width: min(15rem, 62vw); }
+.close__mark { width: auto; height: min(9rem, 26vh); }
 .close__title {
   font-family: var(--font-display);
   font-weight: 400;
