@@ -142,10 +142,98 @@
     /* ignore */
   }
 
+  /* ─── Smooth scroll · Lenis ────────────────────────────
+   * Progressive enhancement: if lenis.min.js failed to load, or the user
+   * prefers reduced motion, everything below falls back to native scrolling.
+   * Nothing else in this file depends on lenis existing.
+   */
+  var lenis = null;
+
+  function initSmoothScroll() {
+    // Lenis owns the easing curve, so native smooth must stay off while it
+    // runs. If it never loads (blocked script, offline cache) we fall back to
+    // the browser's own smooth scrolling rather than shipping hard jumps.
+    if (reduced.matches) return;
+
+    if (typeof window.Lenis !== "function") {
+      document.documentElement.classList.add("no-lenis");
+      return;
+    }
+
+    lenis = new window.Lenis({
+      duration: 1.1,
+      // Exponential ease-out, the curve lenis recommends for page scrolling.
+      easing: function (t) { return Math.min(1, 1.001 - Math.pow(2, -10 * t)); },
+      smoothWheel: true,
+      // Native momentum on touch already feels right and lerping it feels laggy.
+      syncTouch: false,
+      touchMultiplier: 1.6
+    });
+
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
+    requestAnimationFrame(raf);
+
+    // Route in-page anchors through lenis so they get the same easing,
+    // and clear the native scroll-padding which lenis bypasses.
+    document.addEventListener("click", function (e) {
+      var link = e.target.closest && e.target.closest('a[href^="#"]');
+      if (!link) return;
+      var hash = link.getAttribute("href");
+      if (!hash || hash === "#" || link.hasAttribute("data-no-lenis")) return;
+      var target = document.querySelector(hash);
+      if (!target) return;
+      e.preventDefault();
+      lenis.scrollTo(target, { offset: -(bannerHeight() + 24) });
+      if (history.replaceState) history.replaceState(null, "", hash);
+    });
+  }
+
+  /* Offset for anchor jumps so the target clears the fixed nav.
+     Measured from the nav element, not the --banner-height custom property:
+     that value is declared in rem and parseFloat("4.5rem") yields 4.5, not
+     the 72px actually occupied. */
+  function bannerHeight() {
+    var navEl = document.getElementById("nav");
+    if (navEl) {
+      var h = navEl.getBoundingClientRect().height;
+      if (h > 0) return h;
+    }
+    // Fallback: convert the rem token using the root font size.
+    var token = getComputedStyle(document.documentElement)
+      .getPropertyValue("--banner-height").trim();
+    var rem = parseFloat(token);
+    var rootPx = parseFloat(
+      getComputedStyle(document.documentElement).fontSize
+    ) || 16;
+    if (!isNaN(rem)) return rem * rootPx;
+    return 64;
+  }
+
   /* ─── Nav · scrolled state + scroll progress ───────────── */
   var nav = document.getElementById("nav");
   var progress = document.getElementById("navProgress");
+  var pbEdge = document.querySelector(".pb-edge");
   var ticking = false;
+
+  // Progressive blur ramp: 0 until the nav is pinned, then eases to 1 over
+  // the first ~120px. Past 1 there is nothing left to change, so we stop
+  // writing the property and let the scrim sit at its final blur.
+  var PB_RANGE = 120;
+  function syncProgressiveBlur() {
+    if (!pbEdge) return;
+    var y = window.scrollY;
+    if (y <= 0) {
+      pbEdge.style.setProperty("--pb-p", "0");
+      return;
+    }
+    var p = Math.min(y / PB_RANGE, 1);
+    // ease-out so the blur arrives quickly but settles softly
+    p = 1 - Math.pow(1 - p, 3);
+    pbEdge.style.setProperty("--pb-p", p.toFixed(3));
+  }
 
   function syncScroll() {
     ticking = false;
@@ -159,6 +247,8 @@
       var ratio = max > 0 ? Math.min(Math.max(window.scrollY / max, 0), 1) : 0;
       progress.style.setProperty("--progress", ratio.toFixed(4));
     }
+
+    syncProgressiveBlur();
   }
 
   function onScroll() {
@@ -511,4 +601,10 @@
   }
 
   window.addEventListener("scroll", onParallaxScroll, { passive: true });
+
+  /* ─── Boot · smooth scroll ───────────────────────────────
+   * Initialised last so the reveal observers and parallax are already wired
+   * before lenis takes over the scroll position.
+   */
+  initSmoothScroll();
 })();
